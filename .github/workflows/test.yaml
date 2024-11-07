@@ -4,16 +4,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up node
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-      
-      - name: Install dependencies
-        run: npm install
-      
-      - name: Start server
-        run: npm start &
 
       - name: Create reports directory
         run: mkdir reports
