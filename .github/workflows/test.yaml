@@ -3,16 +3,34 @@ jobs:
   Test:
     runs-on: ubuntu-latest
     steps:
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      
       - uses: actions/checkout@v3
 
       - name: Create reports directory
         run: mkdir reports
+
+      - name: Start Server Monitoring
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_IP }} "nohup sar 1 60 > ~/cpu_mem_usage.log &"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_IP }} "nohup iostat -x 1 60 > ~/disk_usage.log &"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_IP }} "nohup vmstat 1 60 > ~/vmstat_usage.log &"
       
       - name: JMeter Test
         uses: QAInsights/PerfAction@v5.6.2
         with:
           test-plan-path: ./test_plans/HTTP_Request_Root.jmx
           args: "-e -o ./reports/html/"
+
+      - name: Fetch Monitoring Logs
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_IP }} "killall sar iostat vmstat" # Stops monitoring commands
+          scp ${{ secrets.SSH_USER }}@${{ secrets.SSH_IP }}:~/cpu_mem_usage.log ./reports/cpu_mem_usage.log
+          scp ${{ secrets.SSH_USER }}@${{ secrets.SSH_IP }}:~/disk_usage.log ./reports/disk_usage.log
+          scp ${{ secrets.SSH_USER }}@${{ secrets.SSH_IP }}:~/vmstat_usage.log ./reports/vmstat_usage.log
       
       - name: Upload Results
         uses: actions/upload-artifact@v3
@@ -26,4 +44,11 @@ jobs:
         with:
           name: jmeter-html-reports
           path: reports
+          if-no-files-found: error
+
+      - name: Upload Server Monitoring Logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: server-monitoring-logs
+          path: reports/cpu_mem_usage.log, reports/disk_usage.log, reports/vmstat_usage.log
           if-no-files-found: error
